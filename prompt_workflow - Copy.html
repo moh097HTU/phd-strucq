@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StruQ Prompt Workflow</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --card-bg: #161b22;
+            --border-color: #30363d;
+            --accent-color: #58a6ff;
+            --accent-hover: #79c0ff;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: var(--text-color);
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        p.subtitle {
+            color: #8b949e;
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+            text-align: center;
+            max-width: 800px;
+            line-height: 1.5;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+            width: 100%;
+            max-width: 1200px;
+            overflow-x: auto;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            background-color: transparent;
+        }
+
+        .info-panel {
+            margin-top: 3rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .info-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .info-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.3);
+            border-color: var(--accent-color);
+        }
+
+        .info-card h3 {
+            color: var(--accent-color);
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+        }
+
+        .info-card ul {
+            margin: 0;
+            padding-left: 1.2rem;
+            color: #a5b4fc;
+            line-height: 1.6;
+            list-style-type: none;
+        }
+        
+        .info-card ul li::before {
+            content: "▹";
+            color: var(--accent-color);
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+        }
+
+        .info-card li {
+            margin-bottom: 0.75rem;
+            color: #c9d1d9;
+            font-size: 0.95rem;
+        }
+        
+        .info-card code {
+            background-color: rgba(110, 118, 129, 0.4);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>StruQ Prompt Workflow</h1>
+    <p class="subtitle">Visualising the lifecycle of a prompt from raw data to guarded generation, integrating StruQ's structured bounding with the 3-way router and embedding-time mitigations.</p>
+
+    <div class="container">
+        <div class="mermaid">
+            %%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#1f6feb', 'primaryTextColor': '#fff', 'primaryBorderColor': '#388bfd', 'lineColor': '#8b949e', 'secondaryColor': '#238636', 'tertiaryColor': '#a371f7'}}}%%
+            flowchart TD
+                subgraph Raw_Data [Raw Data Entry]
+                    A1[Dataset JSON] -->|Extract| A2[Instruction]
+                    A1 -->|Extract| A3[Data / Input]
+                end
+
+                subgraph Attack_Injection [Attack Injection test.py]
+                    A3 -->|Optional| B1{Injection Mode}
+                    B1 -->|None| B2[Clean Data]
+                    B1 -->|Naive / Ignore / PAIR| B3[Append Attack String]
+                    B1 -->|Completion| B4[Format-Breaking Injection]
+                    B1 -->|GCG| B5[Adversarial Suffix]
+                end
+
+                subgraph Pre_processing [Pre-processing & Framing]
+                    B2 & B3 & B4 & B5 --> C1{Defensive Filter?}
+                    C1 -->|Yes| C2[Strip Reserved Tokens <br/>recursive_filter]
+                    C1 -->|No| C3[Keep Intact]
+                    
+                    C2 & C3 --> C4[Prompt Framing <br/>config.py]
+                    A2 --> C4
+                    C4 -->|Apply DELIMITERS| C5[Formatted String: <br/>PROMPT_FORMAT.format_map]
+                end
+
+                subgraph Setup_Zero_Shot [Zero-Shot Defenses]
+                    C5 --> D1{Defense Mode?}
+                    D1 -->|Sandwich| D2[Repeat Instruction at end]
+                    D1 -->|Isolation| D3[Wrap Data in Quotes]
+                    D1 -->|Instructional/Reminder| D4[Append Warning to Instruction]
+                    D1 -->|None| D5[Pass Through]
+                end
+
+                subgraph Span_Mapping [Span Mapping span_utils.py]
+                    D2 & D3 & D4 & D5 --> E1["tokenize_with_spans(text, tokenizer)"]
+                    E1 --> E2[input_ids]
+                    E1 --> E3["span_labels <br/>(PROMPT=0, DATA=1, DELIM=2)"]
+                end
+
+                subgraph Guarded_Generation [Guarded Generation guarded_generate.py]
+                    E2 & E3 --> F1{"router.classify() <br/>pool DATA hidden states"}
+                    
+                    F1 -->|ROUTE: BENIGN| F2["apply_benign_noise() <br/>Std: 0.01 on DATA only"]
+                    F1 -->|ROUTE: PAIR| F3["apply_pair_noise() <br/>Std: 0.30 on DATA only"]
+                    F1 -->|ROUTE: GCG| F4["apply_gcg_shrink() <br/>Top-10 salient shrink <br/>on DATA suffix"]
+                    
+                    F2 & F3 & F4 --> G1[Modified inputs_embeds]
+                    
+                    G1 --> H1["model.generate(inputs_embeds)"]
+                    H1 --> H2(((Output Text)))
+                end
+                
+                style F2 stroke:#3fb950,stroke-width:2px
+                style F3 stroke:#d29922,stroke-width:2px
+                style F4 stroke:#f85149,stroke-width:2px
+                style H2 fill:#238636,stroke:#3fb950,stroke-width:2px
+                
+                classDef default fill:#161b22,stroke:#30363d,stroke-width:1px,color:#c9d1d9;
+                classDef subgraph_style fill:none,stroke:#484f58,stroke-width:1px,stroke-dasharray: 5 5;
+                class Raw_Data,Attack_Injection,Pre_processing,Setup_Zero_Shot,Span_Mapping,Guarded_Generation subgraph_style;
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <div class="info-card">
+            <h3>🗡️ 1. Attack Injection</h3>
+            <ul>
+                <li>Simulates various prompt injections (e.g. <code>naive</code>, <code>completion</code>, <code>hackaprompt</code>) or adversarial suffixes (<code>gcg</code>).</li>
+                <li>Injected directly into the <code>input</code> block, simulating untrusted user data, RAG context, or external tool outputs.</li>
+            </ul>
+        </div>
+        <div class="info-card">
+            <h3>🧱 2. StruQ Framing</h3>
+            <ul>
+                <li>Combines the trusted instruction with the untrusted input using reserved special delimiters (e.g., <code>[INST]</code>, <code>[INPT]</code>, <code>[RESP]</code>).</li>
+                <li>Optional recursive filtering strips out delimiter tokens inserted maliciously by the attacker.</li>
+            </ul>
+        </div>
+         <div class="info-card">
+            <h3>📍 3. Span Mapping</h3>
+            <ul>
+                <li>Parses the formatted string to definitively categorize each token as <code>PROMPT</code>, <code>DATA</code>, or <code>DELIMITER</code>.</li>
+                <li>Prevents ambiguous boundaries and ensures mitigations only affect untrusted context.</li>
+            </ul>
+        </div>
+        <div class="info-card">
+            <h3>🚦 4. Routing & Mitigation</h3>
+            <ul>
+                <li><strong>Router:</strong> Pools hidden states over <code>DATA</code> tokens only, classifying as BENIGN, PAIR, or GCG using your scikit-learn model.</li>
+                <li><strong>Mitigation:</strong> Applies targeted noise or saliency-shrinking <strong>strictly to the DATA embeddings</strong>, preserving the model's fundamental instruction-following pathways.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+</html>
