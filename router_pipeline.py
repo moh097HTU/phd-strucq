@@ -47,7 +47,7 @@ FEATURE_BATCH_SIZE = 4
 
 TRAIN_BATCH_SIZE = 32
 EPOCHS = 30
-LR = 5e-4
+LR = 1e-4  # lowered to prevent exploding gradients with 65k dims
 SPLIT_SEED = 42
 TRAIN_RATIO = 0.70
 VAL_RATIO = 0.15
@@ -301,7 +301,10 @@ def extract_hidden_states(
     results = {}
     for l in layers:
         if all_features[l]:
-            results[l] = torch.cat(all_features[l], dim=0).float()
+            layer_feats = torch.cat(all_features[l], dim=0).float()
+            # Handle any potential infs from float16 overflow to prevent NaN loss
+            layer_feats = torch.nan_to_num(layer_feats, nan=0.0, posinf=10.0, neginf=-10.0)
+            results[l] = layer_feats
     return results
 
 
