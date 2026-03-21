@@ -73,8 +73,18 @@ def generate_training_data(data_dicts, prompt_dict_name, attack, tokenizer):
 
 
 def jload(f, mode="r"):
+    import io, json, os
+    file_path = f if not isinstance(f, io.IOBase) else "file_object"
     if not isinstance(f, io.IOBase): f = open(f, mode=mode)
-    jdict = json.load(f)
+    try:
+        jdict = json.load(f)
+    except Exception as e:
+        print(f"\n[DEBUG JLOAD ERROR] Path: {file_path}")
+        if isinstance(file_path, str) and os.path.exists(file_path):
+            print(f"Size on disk: {os.path.getsize(file_path)} bytes")
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as debug_f:
+                print(f"First 100 bytes: {repr(debug_f.read(100))}")
+        raise e
     f.close()
     return jdict
 
