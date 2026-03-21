@@ -334,11 +334,14 @@ def test_parser():
                         help='Enable 3-way router + DATA-only embedding mitigations')
     return parser.parse_args()
 
-def load_lora_model(model_name_or_path, device='0', load_model=True):
+def load_lora_model(model_name_or_path, device='0', load_model=True, force_spcl=False):
     configs = model_name_or_path.split('/')[-1].split('_') + ['Frontend-Delimiter-Placeholder', 'None']
 
     base_model_path = model_name_or_path
     frontend_delimiters = configs[1] if configs[1] in DELIMITERS else base_model_path.split('/')[-1]
+    if force_spcl:
+        frontend_delimiters = 'SpclSpclSpcl'
+    
     training_attacks = configs[2]
     if not load_model: return base_model_path
     model, tokenizer = load_model_and_tokenizer(base_model_path, low_cpu_mem_usage=True, use_cache=False, device="cuda:" + device)
@@ -365,7 +368,9 @@ def test():
 
     for a in args.attack:
         if a != 'gcg': 
-            model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(args.model_name_or_path, args.device)
+            model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(
+                args.model_name_or_path, args.device, force_spcl=args.use_router
+            )
             break
 
     for a in args.attack:
@@ -495,7 +500,9 @@ def gcg(d_item, attack, cfg, data_delm):
 
 def test_gcg(args):
     setup_logger(True)
-    model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(args.model_name_or_path, args.device)
+    model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(
+        args.model_name_or_path, args.device, force_spcl=args.use_router
+    )
 
     cfg = config_dict.ConfigDict()
     cfg.name = "gcg"  # Attack name
