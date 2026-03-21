@@ -625,7 +625,7 @@ def inference_demo(router, features, df):
 def main():
     parser = argparse.ArgumentParser(description="Router Pipeline – LLaMA-7B embeddings (improved)")
     parser.add_argument("--data_path", type=str, default="data.csv", help="Path to labelled CSV")
-    parser.add_argument("--save_path", type=str, default="router_model.pt", help="Where to save the trained router")
+    parser.add_argument("--save_path", type=str, default="/tmp/router_model.pt", help="Where to save the trained router")
     parser.add_argument("--model_name", type=str, default=MODEL_NAME, help="HF model for embedding extraction")
     parser.add_argument("--batch_size", type=int, default=FEATURE_BATCH_SIZE, help="Batch size for feature extraction")
     parser.add_argument("--pooling", type=str, default="mean_last", choices=["last", "mean", "mean_last"],
