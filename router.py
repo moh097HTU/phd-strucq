@@ -35,15 +35,15 @@ class DataRouter:
             # resolve relative to the StruQ project root
             model_path = os.path.join(os.path.dirname(__file__), model_path)
 
-        if not os.path.exists(model_path):
-            if os.path.exists('/tmp/router_model.pt'):
-                logger.info("Found router model in /tmp/ fallback! Using that instead.")
-                model_path = '/tmp/router_model.pt'
-            else:
-                raise FileNotFoundError(
-                    f"Router model not found at {model_path} or /tmp/router_model.pt. "
-                    "Train your router and place the .pt file there."
-                )
+        # Prioritize the freshly trained /tmp model to avoid loading corrupted local files
+        if os.path.exists('/tmp/router_model.pt'):
+            logger.info("Found router model in /tmp/! Using that instead.")
+            model_path = '/tmp/router_model.pt'
+        elif not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"Router model not found at {model_path} or /tmp/router_model.pt. "
+                "Train your router and place the .pt file there."
+            )
 
         checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
         
