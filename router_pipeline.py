@@ -42,12 +42,13 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 MODEL_NAME = "huggyllama/llama-7b"
 USE_CHAT_TEMPLATE = False
 # More layers for richer multi-layer features
-LAYERS_TO_EXTRACT = [4, 8, 12, 16, 20, 24, 28, 31]
+# Use fewer layers to prevent extreme overfitting (65k features is too many for 2k rows)
+LAYERS_TO_EXTRACT = [24, 31]  
 FEATURE_BATCH_SIZE = 4
 
 TRAIN_BATCH_SIZE = 32
 EPOCHS = 30
-LR = 1e-4  # lowered to prevent exploding gradients with 65k dims
+LR = 1e-4
 SPLIT_SEED = 42
 TRAIN_RATIO = 0.70
 VAL_RATIO = 0.15
@@ -115,54 +116,26 @@ class PromptRouterMLP(nn.Module):
     def __init__(
         self,
         in_dim: int,
-        hidden_dim: int = 512,
-        dropout: float = 0.15,
+        hidden_dim: int = 256,
+        dropout: float = 0.20,
     ) -> None:
         super().__init__()
-        self.norm = nn.LayerNorm(in_dim)
-        self.proj = nn.Linear(in_dim, hidden_dim)
-
-        # Block 1
-        self.block1 = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+        # A simpler architecture is more stable for massive input dimensions
+        self.net = nn.Sequential(
+            nn.LayerNorm(in_dim),
+            nn.Linear(in_dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-        )
-        self.norm1 = nn.LayerNorm(hidden_dim)
-
-        # Block 2
-        self.block2 = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-        )
-        self.norm2 = nn.LayerNorm(hidden_dim)
-
-        # Block 3
-        self.block3 = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim // 2),
             nn.GELU(),
             nn.Dropout(dropout),
+            nn.Linear(hidden_dim // 2, 3),
         )
-
-        self.head = nn.Linear(hidden_dim // 2, 3)
 
     def forward(self, x_features: torch.Tensor) -> torch.Tensor:
         if x_features.ndim != 2:
             raise ValueError(f"Expected x_features [B,D], got {tuple(x_features.shape)}")
-
-        x = self.proj(self.norm(x_features))
-
-        # Residual block 1
-        x = self.norm1(x + self.block1(x))
-
-        # Residual block 2
-        x = self.norm2(x + self.block2(x))
-
-        # Final block (no residual, dimension changes)
-        x = self.block3(x)
-
-        return self.head(x)
+        return self.net(x_features)
 
     @torch.no_grad()
     def predict(
@@ -273,26 +246,25 @@ def extract_hidden_states(
 
         for l in layers:
             if l < len(outputs.hidden_states):
-                layer_hidden = outputs.hidden_states[l]  # [B, seq_len, hidden_dim]
-                B = layer_hidden.size(0)
-                batch_indices = torch.arange(B, device=layer_hidden.device)
+                # Convert to float32 BEFORE summing to prevent float16 overflow to `inf`!
+                layer_hidden_fp32 = outputs.hidden_states[l].float()
+                B = layer_hidden_fp32.size(0)
+                batch_indices = torch.arange(B, device=layer_hidden_fp32.device)
 
                 if pooling == "last":
-                    embeds = layer_hidden[batch_indices, last_token_idxs, :]
+                    embeds = layer_hidden_fp32[batch_indices, last_token_idxs, :]
                 elif pooling == "mean":
-                    # Mean pool over non-padding tokens
-                    mask_expanded = attention_mask.unsqueeze(-1).to(layer_hidden.dtype)  # [B, seq_len, 1]
-                    sum_hidden = (layer_hidden * mask_expanded).sum(dim=1)  # [B, hidden_dim]
-                    counts = attention_mask.sum(dim=1, keepdim=True).to(layer_hidden.dtype)  # [B, 1]
+                    mask_expanded = attention_mask.unsqueeze(-1).to(torch.float32)
+                    sum_hidden = (layer_hidden_fp32 * mask_expanded).sum(dim=1)
+                    counts = attention_mask.sum(dim=1, keepdim=True).to(torch.float32)
                     embeds = sum_hidden / counts.clamp(min=1)
                 elif pooling == "mean_last":
-                    # Concatenate mean-pool and last-token
-                    last_embeds = layer_hidden[batch_indices, last_token_idxs, :]
-                    mask_expanded = attention_mask.unsqueeze(-1).to(layer_hidden.dtype)
-                    sum_hidden = (layer_hidden * mask_expanded).sum(dim=1)
-                    counts = attention_mask.sum(dim=1, keepdim=True).to(layer_hidden.dtype)
+                    last_embeds = layer_hidden_fp32[batch_indices, last_token_idxs, :]
+                    mask_expanded = attention_mask.unsqueeze(-1).to(torch.float32)
+                    sum_hidden = (layer_hidden_fp32 * mask_expanded).sum(dim=1)
+                    counts = attention_mask.sum(dim=1, keepdim=True).to(torch.float32)
                     mean_embeds = sum_hidden / counts.clamp(min=1)
-                    embeds = torch.cat([mean_embeds, last_embeds], dim=-1)  # [B, 2*hidden_dim]
+                    embeds = torch.cat([mean_embeds, last_embeds], dim=-1)
                 else:
                     raise ValueError(f"Unknown pooling: {pooling}")
 
@@ -301,9 +273,7 @@ def extract_hidden_states(
     results = {}
     for l in layers:
         if all_features[l]:
-            layer_feats = torch.cat(all_features[l], dim=0).float()
-            # Handle any potential infs from float16 overflow to prevent NaN loss
-            layer_feats = torch.nan_to_num(layer_feats, nan=0.0, posinf=10.0, neginf=-10.0)
+            layer_feats = torch.cat(all_features[l], dim=0)
             results[l] = layer_feats
     return results
 
