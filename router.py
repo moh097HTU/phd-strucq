@@ -41,7 +41,7 @@ class DataRouter:
                 "Train your router and place the .pt file there."
             )
 
-        checkpoint = torch.load(model_path, map_location='cpu')
+        checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)
         
         # Setup configs based on what was trained
         self.layers_used = checkpoint.get('layers_used', [24, 31])
