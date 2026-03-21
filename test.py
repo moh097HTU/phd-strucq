@@ -9,7 +9,6 @@ import argparse
 import time
 import torch
 import transformers
-from peft import PeftModel
 import subprocess
 from config import IGNORE_ATTACK_SENTENCES, PROMPT_FORMAT, DEFAULT_TOKENS, DELIMITERS, TEST_INJECTED_WORD, TEST_INJECTED_PROMPT, TEST_INJECTED_PROMPT_SPANISH, TEXTUAL_DELM_TOKENS, FILTERED_TOKENS, TEST_INJECTED_PROMPT_CHINESE, SPECIAL_DELM_TOKENS
 from struq import format_with_other_delimiters, _tokenize_fn, jload, jdump
