@@ -88,7 +88,7 @@ def _test_model_output_guarded(llm_input, model, tokenizer, router, frontend_del
     outputs = []
     route_counts = {'BENIGN': 0, 'PAIR': 0, 'GCG': 0, 'NONE': 0}
 
-    log_file = "router_evaluation_log.csv"
+    log_file = "/tmp/router_evaluation_log.csv"
     with open(log_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(['Original Prompt', 'Router Classification', 'Model Output', 'Original Classification'])
