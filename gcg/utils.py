@@ -418,15 +418,17 @@ def build_prompt(
 def batchify_kv_cache(prefix_cache, batch_size):
     batch_prefix_cache = []
     
-    if hasattr(prefix_cache, "key_cache"):
-        iterator = zip(prefix_cache.key_cache, prefix_cache.value_cache)
+    if hasattr(prefix_cache, "to_legacy_cache"):
+        legacy_cache = prefix_cache.to_legacy_cache()
+    elif hasattr(prefix_cache, "key_cache"):
+        legacy_cache = list(zip(prefix_cache.key_cache, prefix_cache.value_cache))
     else:
-        iterator = prefix_cache
+        legacy_cache = prefix_cache
         
-    for layer_elements in iterator:
+    for layer_elements in legacy_cache:
         k = layer_elements[0]
         v = layer_elements[1]
-        rest = layer_elements[2:]
+        rest = layer_elements[2:] if len(layer_elements) > 2 else []
         
         k_rep = k.repeat(batch_size, *([1] * (k.ndim - 1))) if hasattr(k, 'repeat') else k
         v_rep = v.repeat(batch_size, *([1] * (v.ndim - 1))) if hasattr(v, 'repeat') else v
@@ -438,17 +440,14 @@ def batchify_kv_cache(prefix_cache, batch_size):
             
         batch_prefix_cache.append(tuple([k_rep, v_rep] + rest_rep))
         
-    if hasattr(prefix_cache, "key_cache"):
-        try:
-            new_cache = type(prefix_cache)()
-            if hasattr(prefix_cache, "_seen_tokens"):
-                new_cache._seen_tokens = prefix_cache._seen_tokens
-            for layer in batch_prefix_cache:
-                new_cache.key_cache.append(layer[0])
-                new_cache.value_cache.append(layer[1])
-            return new_cache
-        except Exception:
-            pass
+    try:
+        from transformers.cache_utils import DynamicCache
+        new_cache = DynamicCache.from_legacy_cache(tuple(batch_prefix_cache))
+        if hasattr(prefix_cache, "_seen_tokens"):
+            new_cache._seen_tokens = prefix_cache._seen_tokens
+        return new_cache
+    except Exception:
+        pass
 
     return tuple(batch_prefix_cache)
 
