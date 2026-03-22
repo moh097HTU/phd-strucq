@@ -417,10 +417,27 @@ def build_prompt(
 
 def batchify_kv_cache(prefix_cache, batch_size):
     batch_prefix_cache = []
-    # Support both old tuple format and new transformers.Cache objects
-    cache_iterator = zip(prefix_cache.key_cache, prefix_cache.value_cache) if hasattr(prefix_cache, 'key_cache') else prefix_cache
-    for k, v in cache_iterator:
-        batch_prefix_cache.append((k.repeat(batch_size, 1, 1, 1), v.repeat(batch_size, 1, 1, 1)))
+    
+    if hasattr(prefix_cache, "key_cache"):
+        iterator = zip(prefix_cache.key_cache, prefix_cache.value_cache)
+    else:
+        iterator = prefix_cache
+        
+    for layer_elements in iterator:
+        k = layer_elements[0]
+        v = layer_elements[1]
+        rest = layer_elements[2:]
+        
+        k_rep = k.repeat(batch_size, *([1] * (k.ndim - 1))) if hasattr(k, 'repeat') else k
+        v_rep = v.repeat(batch_size, *([1] * (v.ndim - 1))) if hasattr(v, 'repeat') else v
+        
+        rest_rep = []
+        for item in rest:
+            if hasattr(item, 'repeat'): rest_rep.append(item.repeat(batch_size, *([1] * (item.ndim - 1))))
+            else: rest_rep.append(item)
+            
+        batch_prefix_cache.append(tuple([k_rep, v_rep] + rest_rep))
+        
     return tuple(batch_prefix_cache)
 
 
