@@ -443,13 +443,12 @@ def batchify_kv_cache(prefix_cache, batch_size):
     try:
         from transformers.cache_utils import DynamicCache
         new_cache = DynamicCache()
-        for layer in batch_prefix_cache:
-            new_cache.key_cache.append(layer[0])
-            new_cache.value_cache.append(layer[1])
+        for i, layer in enumerate(batch_prefix_cache):
+            new_cache.update(layer[0], layer[1], i)
         if hasattr(prefix_cache, "_seen_tokens"):
             new_cache._seen_tokens = prefix_cache._seen_tokens
-        elif len(new_cache.key_cache) > 0:
-            new_cache._seen_tokens = new_cache.key_cache[0].shape[-2]
+        elif hasattr(new_cache, "_seen_tokens") and len(batch_prefix_cache) > 0:
+            new_cache._seen_tokens = batch_prefix_cache[0][0].shape[-2]
         return new_cache
     except Exception as e:
         import traceback
