@@ -417,9 +417,11 @@ def build_prompt(
 
 def batchify_kv_cache(prefix_cache, batch_size):
     batch_prefix_cache = []
-    for k, v in prefix_cache:
+    # Support both old tuple format and new transformers.Cache objects
+    cache_iterator = zip(prefix_cache.key_cache, prefix_cache.value_cache) if hasattr(prefix_cache, 'key_cache') else prefix_cache
+    for k, v in cache_iterator:
         batch_prefix_cache.append((k.repeat(batch_size, 1, 1, 1), v.repeat(batch_size, 1, 1, 1)))
-    return batch_prefix_cache
+    return tuple(batch_prefix_cache)
 
 
 def get_nonascii_toks(tokenizer, device="cpu") -> torch.Tensor:
