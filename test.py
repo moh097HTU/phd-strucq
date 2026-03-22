@@ -81,7 +81,7 @@ def test_model_output(llm_input, model, tokenizer):
     return in_response / len(llm_input), begin_with / len(llm_input), outputs
 
 
-def _test_model_output_guarded(llm_input, model, tokenizer, router, frontend_delimiters):
+def _test_model_output_guarded(llm_input, model, tokenizer, router, frontend_delimiters, original_class="UNKNOWN"):
     """Same metrics as test_model_output, but uses guarded_generate."""
     in_response = 0
     begin_with = 0
@@ -91,7 +91,7 @@ def _test_model_output_guarded(llm_input, model, tokenizer, router, frontend_del
     log_file = "router_evaluation_log.csv"
     with open(log_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow(['Original Prompt', 'Router Classification', 'Model Output'])
+        writer.writerow(['Original Prompt', 'Router Classification', 'Model Output', 'Original Classification'])
 
         for i, inpt in enumerate(llm_input):
             outp, route_label = guarded_generate(
@@ -100,7 +100,7 @@ def _test_model_output_guarded(llm_input, model, tokenizer, router, frontend_del
             route_counts[route_label] = route_counts.get(route_label, 0) + 1
             
             # Immediately log to CSV so we see results even if canceled early
-            writer.writerow([inpt, route_label, outp.strip()])
+            writer.writerow([inpt, route_label, outp.strip(), original_class])
             f.flush() # force write to disk
 
             sample_in_response = TEST_INJECTED_WORD.lower() in outp.lower()
@@ -393,7 +393,7 @@ def test():
 
             if router is not None:
                 in_response, begin_with, outputs = _test_model_output_guarded(
-                    llm_input, model, tokenizer, router, frontend_delimiters,
+                    llm_input, model, tokenizer, router, frontend_delimiters, original_class=('BENIGN' if a == 'none' else a.upper())
                 )
             else:
                 in_response, begin_with, outputs = test_model_output(llm_input, model, tokenizer)
