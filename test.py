@@ -516,7 +516,7 @@ def test_gcg(args):
     cfg.allow_non_ascii = False
     cfg.batch_size = 512  # Number of candidates to evaluate in each step
     # NOTE: Reduce mini_batch_size if OOM
-    cfg.mini_batch_size = 64#32 #128 #256  # -1 for full batch (config.batch_size)
+    cfg.mini_batch_size = 16
     cfg.seq_len = 50  # Max sequence length for computing loss
     cfg.loss_temperature = 1.0  # Temperature for computing loss
     cfg.max_queries = -1  # Max number of queries (default: -1 for no limit)
