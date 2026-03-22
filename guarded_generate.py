@@ -101,6 +101,7 @@ def guarded_generate(
                 topk=config['gcg_topk_shrink'],
                 shrink_factor=config['gcg_shrink_factor'],
                 tokenizer=tokenizer,
+                input_ids=input_ids,
             )
     # else: route_label == 'NONE' → no mitigation
 

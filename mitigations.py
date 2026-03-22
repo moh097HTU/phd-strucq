@@ -63,6 +63,7 @@ def apply_gcg_shrink(
     shrink_factor=0.01,
     target_text="Sure, here is",
     tokenizer=None,
+    input_ids=None,
 ):
     """Shrink the most salient DATA-suffix embeddings to neutralise GCG suffixes.
 
@@ -137,4 +138,10 @@ def apply_gcg_shrink(
     # ── Shrink those embeddings ───────────────────────────────────────
     modified = inputs_embeds.clone()
     modified[0, topk_global] *= shrink_factor
+
+    if input_ids is not None and tokenizer is not None:
+        shrunk_ids = input_ids[topk_global]
+        shrunk_tokens = tokenizer.convert_ids_to_tokens(shrunk_ids)
+        print(f"\n[Router Defense] Soft removal applied! Shrunk highly salient tokens: {shrunk_tokens}")
+
     return modified
