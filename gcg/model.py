@@ -170,9 +170,10 @@ class TransformersModel:
     def _get_batch_prefix_cache(self, batch_size: int) -> PrefixCache:
         if self.prefix_cache is None:
             raise RuntimeError("Prefix cache has not been set!")
-        if batch_size not in self._batch_prefix_cache:
-            self._batch_prefix_cache[batch_size] = batchify_kv_cache(self.prefix_cache, batch_size)
-        return self._batch_prefix_cache[batch_size]
+        # NOTE: DynamicCache objects are actively mutated by LLaMA during the forward pass.
+        # We MUST NOT return a shared persistent instance, otherwise KV sequence lengths 
+        # append onto themselves infinitely across minibatches, leading to massive OOM structural explosions!
+        return batchify_kv_cache(self.prefix_cache, batch_size)
 
     def set_prefix_cache(self, messages: list[Message]) -> None:
         self.prefix_cache, self.num_fixed_tokens = get_prefix_cache(
