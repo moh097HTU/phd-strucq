@@ -366,37 +366,38 @@ def test():
     if router is not None:
         print('[Router] Loaded – will classify DATA and apply embedding mitigations')
 
-    for a in args.attack:
-        if a != 'gcg': 
-            model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(
-                args.model_name_or_path, args.device, force_spcl=args.use_router
-            )
-            break
+    model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(
+        args.model_name_or_path, args.device, force_spcl=args.use_router
+    )
 
     for a in args.attack:
-        if a == 'gcg': test_gcg(args); continue
         data = jload(args.data_path)
-        if os.path.exists(args.model_name_or_path):
-            benign_response_name = args.model_name_or_path + '/predictions_on_' + os.path.basename(args.data_path)
+        if a == 'gcg':
+            llm_input = test_gcg(args, model, tokenizer, frontend_delimiters, training_attacks)
         else:
-            os.makedirs(args.model_name_or_path + '-log', exist_ok=True)
-            benign_response_name = args.model_name_or_path + '-log/predictions_on_' + os.path.basename(args.data_path)
-        
-        if not os.path.exists(benign_response_name) or a != 'none':
-            llm_input = form_llm_input(
-                data, 
-                eval(a), 
-                PROMPT_FORMAT[frontend_delimiters], 
-                apply_defensive_filter=not (training_attacks == 'None' and len(args.model_name_or_path.split('/')[-1].split('_')) == 4),
-                defense=args.defense
-                )
-
-            if router is not None:
-                in_response, begin_with, outputs = _test_model_output_guarded(
-                    llm_input, model, tokenizer, router, frontend_delimiters, original_class=('BENIGN' if a == 'none' else a.upper())
-                )
+            if os.path.exists(args.model_name_or_path):
+                benign_response_name = args.model_name_or_path + '/predictions_on_' + os.path.basename(args.data_path)
             else:
-                in_response, begin_with, outputs = test_model_output(llm_input, model, tokenizer)
+                os.makedirs(args.model_name_or_path + '-log', exist_ok=True)
+                benign_response_name = args.model_name_or_path + '-log/predictions_on_' + os.path.basename(args.data_path)
+            
+            if not os.path.exists(benign_response_name) or a != 'none':
+                llm_input = form_llm_input(
+                    data, 
+                    eval(a), 
+                    PROMPT_FORMAT[frontend_delimiters], 
+                    apply_defensive_filter=not (training_attacks == 'None' and len(args.model_name_or_path.split('/')[-1].split('_')) == 4),
+                    defense=args.defense
+                    )
+            else:
+                continue
+
+        if router is not None:
+            in_response, begin_with, outputs = _test_model_output_guarded(
+                llm_input, model, tokenizer, router, frontend_delimiters, original_class=('BENIGN' if a == 'none' else a.upper())
+            )
+        else:
+            in_response, begin_with, outputs = test_model_output(llm_input, model, tokenizer)
             
         if a != 'none': # evaluate security
             print(f"\n{a} success rate {in_response} / {begin_with} (in-response / begin_with) on {args.model_name_or_path}, delimiters {frontend_delimiters}, training-attacks {training_attacks}, zero-shot defense {args.defense}\n")
@@ -498,11 +499,8 @@ def gcg(d_item, attack, cfg, data_delm):
     torch.cuda.empty_cache()
     return d_item
 
-def test_gcg(args):
+def test_gcg(args, model, tokenizer, frontend_delimiters, training_attacks):
     setup_logger(True)
-    model, tokenizer, frontend_delimiters, training_attacks = load_lora_model(
-        args.model_name_or_path, args.device, force_spcl=args.use_router
-    )
 
     cfg = config_dict.ConfigDict()
     cfg.name = "gcg"  # Attack name
@@ -572,7 +570,7 @@ def test_gcg(args):
     sample_ids = list(range(len(data))) if args.sample_ids is None else args.sample_ids
     data = [data[i] for i in sample_ids]
     logger.info(f"Running GCG attack on {len(data)} samples {sample_ids}")
-    form_llm_input(
+    llm_input = form_llm_input(
         data,
         lambda x: gcg(x, attack, cfg, data_delm),
         PROMPT_FORMAT[frontend_delimiters],
@@ -580,6 +578,7 @@ def test_gcg(args):
         defense=args.defense,
         sample_ids=sample_ids,
     )
+    return llm_input
 
 
 if __name__ == "__main__":
