@@ -76,6 +76,9 @@ def guarded_generate(
     else:
         route_label = 'NONE'
 
+    # HARDCODED FOR TESTING: Force Soft Removal execution
+    route_label = 'GCG'
+
     # ── 3. Build input embeddings ─────────────────────────────────────
     ids_on_device = input_ids.unsqueeze(0).to(device)
     embed_layer = model.get_input_embeddings()
