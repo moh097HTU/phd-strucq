@@ -140,7 +140,8 @@ def apply_gcg_shrink(
     modified[0, topk_global] *= shrink_factor
 
     if input_ids is not None and tokenizer is not None:
-        shrunk_ids = input_ids[topk_global]
+        topk_global_cpu = topk_global.cpu()
+        shrunk_ids = input_ids[topk_global_cpu].tolist()
         shrunk_tokens = tokenizer.convert_ids_to_tokens(shrunk_ids)
         print(f"\n[Router Defense] Soft removal applied! Shrunk highly salient tokens: {shrunk_tokens}")
 
