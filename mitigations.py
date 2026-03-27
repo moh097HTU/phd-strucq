@@ -136,13 +136,27 @@ def apply_gcg_shrink(
     topk_global = candidate_indices[topk_local]
 
     # ── Shrink those embeddings ───────────────────────────────────────
-    modified = inputs_embeds.clone()
-    modified[0, topk_global] *= shrink_factor
+    import os
+    hard_remove = os.environ.get('HARD_REMOVE', 'false').lower() == 'true'
 
-    if input_ids is not None and tokenizer is not None:
-        topk_global_cpu = topk_global.cpu()
-        shrunk_ids = input_ids[topk_global_cpu].tolist()
-        shrunk_tokens = tokenizer.convert_ids_to_tokens(shrunk_ids)
-        print(f"\n[Router Defense] Soft removal applied! Shrunk highly salient tokens: {shrunk_tokens}")
+    if hard_remove:
+        keep_mask = torch.ones(inputs_embeds.shape[1], dtype=torch.bool, device=device)
+        keep_mask[topk_global] = False
+        modified = inputs_embeds[:, keep_mask, :]
+
+        if input_ids is not None and tokenizer is not None:
+            topk_global_cpu = topk_global.cpu()
+            removed_ids = input_ids[topk_global_cpu].tolist()
+            removed_tokens = tokenizer.convert_ids_to_tokens(removed_ids)
+            print(f"\\n[Router Defense] Hard removal applied! Removed highly salient tokens: {removed_tokens}")
+    else:
+        modified = inputs_embeds.clone()
+        modified[0, topk_global] *= shrink_factor
+
+        if input_ids is not None and tokenizer is not None:
+            topk_global_cpu = topk_global.cpu()
+            shrunk_ids = input_ids[topk_global_cpu].tolist()
+            shrunk_tokens = tokenizer.convert_ids_to_tokens(shrunk_ids)
+            print(f"\\n[Router Defense] Soft removal applied! Shrunk highly salient tokens: {shrunk_tokens}")
 
     return modified
