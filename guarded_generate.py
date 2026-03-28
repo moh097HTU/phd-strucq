@@ -123,9 +123,10 @@ def guarded_generate(
         pad_token_id=tokenizer.pad_token_id,
     )
 
-    # The generated tokens start after the prompt length
-    prompt_len = inputs_embeds.shape[1]
-    generated_ids = output_ids[0][prompt_len:]
+    # When passing `inputs_embeds` without `input_ids`, HuggingFace's model.generate 
+    # returns ONLY the newly generated tokens (since it doesn't have the original input_ids to prepend).
+    # Therefore, we do not need to slice off the prompt length!
+    generated_ids = output_ids[0]
     output_text = tokenizer.decode(generated_ids, skip_special_tokens=False)
 
     # Strip leading spaces and EOS
