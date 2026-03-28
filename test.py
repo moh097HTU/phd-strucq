@@ -88,7 +88,9 @@ def _test_model_output_guarded(llm_input, model, tokenizer, router, frontend_del
     outputs = []
     route_counts = {'BENIGN': 0, 'PAIR': 0, 'GCG': 0, 'NONE': 0}
 
-    log_file = "/tmp/router_evaluation_log.csv"
+    hard_remove = os.environ.get('HARD_REMOVE', 'false').lower() == 'true'
+    suffix = "_hard" if hard_remove else "_soft"
+    log_file = f"/tmp/router_evaluation_log{suffix}.csv"
     with open(log_file, 'w', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
         writer.writerow(['Original Prompt', 'Router Classification', 'Model Output', 'Original Classification'])
@@ -400,11 +402,15 @@ def test():
             in_response, begin_with, outputs = test_model_output(llm_input, model, tokenizer)
             
         if a != 'none': # evaluate security
-            print(f"\n{a} success rate {in_response} / {begin_with} (in-response / begin_with) on {args.model_name_or_path}, delimiters {frontend_delimiters}, training-attacks {training_attacks}, zero-shot defense {args.defense}\n")
+            print(f"\\n{a} success rate {in_response} / {begin_with} (in-response / begin_with) on {args.model_name_or_path}, delimiters {frontend_delimiters}, training-attacks {training_attacks}, zero-shot defense {args.defense}\\n")
+            
+            hard_remove = os.environ.get('HARD_REMOVE', 'false').lower() == 'true'
+            suffix = "_hard" if hard_remove else "_soft"
+            
             if os.path.exists(args.model_name_or_path):
-                log_path = args.model_name_or_path + '/' + a + '-' + args.defense + '-' + TEST_INJECTED_WORD + '.csv'
+                log_path = args.model_name_or_path + '/' + a + '-' + args.defense + '-' + TEST_INJECTED_WORD + suffix + '.csv'
             else:
-                log_path = args.model_name_or_path + '-log/' + a + '-' + args.defense + '-' + TEST_INJECTED_WORD + '.csv'
+                log_path = args.model_name_or_path + '-log/' + a + '-' + args.defense + '-' + TEST_INJECTED_WORD + suffix + '.csv'
             with open(log_path, "w") as outfile:
                 writer = csv.writer(outfile)
                 writer.writerows([[llm_input[i], s[0], s[1]] for i, s in enumerate(outputs)])
@@ -427,11 +433,11 @@ def test():
                 if found: begin_with = in_response = item; break # actually is alpaca_eval_win_rate
             if not found: begin_with = in_response = -1
         
-        if os.path.exists(args.model_name_or_path): summary_path = args.model_name_or_path + '/summary.tsv'
-        else: summary_path = args.model_name_or_path + '-log/summary.tsv'
+        if os.path.exists(args.model_name_or_path): summary_path = args.model_name_or_path + f'/summary{suffix}.tsv'
+        else: summary_path = args.model_name_or_path + f'-log/summary{suffix}.tsv'
         if not os.path.exists(summary_path):
-            with open(summary_path, "w") as outfile: outfile.write("attack\tin-response\tbegin-with\tdefense\n")
-        with open(summary_path, "a") as outfile: outfile.write(f"{a}\t{in_response}\t{begin_with}\t{args.defense}_{TEST_INJECTED_WORD}\n")
+            with open(summary_path, "w") as outfile: outfile.write("attack\\tin-response\\tbegin-with\\tdefense\\n")
+        with open(summary_path, "a") as outfile: outfile.write(f"{a}\\t{in_response}\\t{begin_with}\\t{args.defense}_{TEST_INJECTED_WORD}\\n")
 
 
 
